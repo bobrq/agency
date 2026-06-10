@@ -1,5 +1,2 @@
 [settings]
 python.github_attestations = false
-git add mise.toml
-git commit -m "fix mise.toml"
-git push
