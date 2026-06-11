@@ -250,9 +250,9 @@ async def hire_specialist(call: CallbackQuery, state: FSMContext):
     f"📍 Напишите ваш адрес (улица, дом, квартира):",
     parse_mode="HTML"
 )
-await state.update_data(selected_spec_id=spec_id)
-await state.set_state(OrderStates.waiting_address)
-await call.answer()
+    await state.update_data(selected_spec_id=spec_id)
+    await state.set_state(OrderStates.waiting_address)
+    await call.answer()
 
 
 @dp.message(OrderStates.waiting_payment_screenshot, F.photo)
