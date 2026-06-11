@@ -253,6 +253,27 @@ async def hire_specialist(call: CallbackQuery, state: FSMContext):
     await state.update_data(selected_spec_id=spec_id)
     await state.set_state(OrderStates.waiting_address)
     await call.answer()
+    @dp.message(OrderStates.waiting_address)
+async def receive_address(message: Message, state: FSMContext):
+    address = message.text
+    await state.update_data(address=address)
+    data = await state.get_data()
+    spec_id = data.get("selected_spec_id")
+    spec = next((s for s in SPECIALISTS if s["id"] == spec_id), None)
+    pd = PAYMENT_DETAILS
+    text = (
+        f"📍 Адрес принят: <b>{address}</b>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💳 <b>Реквизиты для оплаты:</b>\n\n"
+        f"🏦 Банк: <b>{pd['bank']}</b>\n"
+        f"💳 Карта: <code>{pd['card']}</code>\n"
+        f"👤 Получатель: <b>{pd['name']}</b>\n"
+        f"📱 По номеру: <code>{pd['phone']}</code>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"После оплаты <b>отправьте скриншот</b> чека 📸"
+    )
+    await message.answer(text, parse_mode="HTML")
+    await state.set_state(OrderStates.waiting_payment_screenshot)
 
 
 @dp.message(OrderStates.waiting_payment_screenshot, F.photo)
