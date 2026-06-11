@@ -6,22 +6,21 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
     Message, CallbackQuery, InputMediaPhoto,
     InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove,
     BufferedInputFile
 )
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from data import CITIES, SPECIALISTS, PAYMENT_DETAILS
 from config import BOT_TOKEN, ADMIN_ID
-import io
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+
 
 class OrderStates(StatesGroup):
     choosing_city = State()
@@ -30,10 +29,11 @@ class OrderStates(StatesGroup):
     waiting_address = State()
     waiting_payment_screenshot = State()
 
-pending_payments: dict[str, dict] = {}  # key: "{user_id}_{specialist_id}"
+
+pending_payments: dict[str, dict] = {}
+
 
 def black_square_image(size=300) -> bytes:
-    """Generate a black square as PNG bytes without Pillow."""
     import struct, zlib
 
     def png_chunk(chunk_type: bytes, data: bytes) -> bytes:
@@ -44,14 +44,11 @@ def black_square_image(size=300) -> bytes:
     signature = b"\x89PNG\r\n\x1a\n"
     ihdr_data = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)
     ihdr = png_chunk(b"IHDR", ihdr_data)
-
-    raw_rows = b""
-    row = b"\x00" + b"\x00\x00\x00" * size   # filter byte + RGB black pixels
+    row = b"\x00" + b"\x00\x00\x00" * size
     raw_rows = row * size
     compressed = zlib.compress(raw_rows)
     idat = png_chunk(b"IDAT", compressed)
     iend = png_chunk(b"IEND", b"")
-
     return signature + ihdr + idat + iend
 
 
@@ -82,7 +79,6 @@ def specialist_card_keyboard(idx: int, total: int, spec_id: str):
     nav.append(InlineKeyboardButton(text=f"{idx+1}/{total}", callback_data="noop"))
     if idx < total - 1:
         nav.append(InlineKeyboardButton(text="▶️", callback_data=f"spec_nav:{idx+1}"))
-
     return InlineKeyboardMarkup(inline_keyboard=[
         nav,
         [InlineKeyboardButton(text="✅ Выбрать модель", callback_data=f"hire:{spec_id}")],
@@ -101,11 +97,11 @@ def admin_confirm_keyboard(payment_key: str):
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     await message.answer_photo(
-        photo = FSInputFile("Photos/welcome.png"),
-        caption = (
-        "👋 <b>Вас приветствует модельное агенство Iconic Agency!</b>\n\n"
-        "Здесь вы можете заказать модель\n\n"
-        "Выберите ваш город:"
+        photo=FSInputFile("Photos/welcome.png"),
+        caption=(
+            "👋 <b>Вас приветствует модельное агенство Iconic Agency!</b>\n\n"
+            "Здесь вы можете заказать модель\n\n"
+            "Выберите ваш город:"
         ),
         parse_mode="HTML",
         reply_markup=cities_keyboard()
@@ -118,9 +114,11 @@ async def city_chosen(call: CallbackQuery, state: FSMContext):
     city = call.data.split(":", 1)[1]
     await state.update_data(city=city)
     await call.message.edit_caption(
-        caption=f"📍 Город: <b>{city}</b>\n\nВыберите вариант отдыха:\n\n"
-        f"🔞<b>Интим</b> — секс и буря эмоций\n\n"
-        f"☺️<b>Просто отдых</b> — приятное общение с веселой и общительной девушкой",
+        caption=(
+            f"📍 Город: <b>{city}</b>\n\nВыберите вариант отдыха:\n\n"
+            f"🔞<b>Интим</b> — секс и буря эмоций\n\n"
+            f"☺️<b>Просто отдых</b> — приятное общение с веселой и общительной девушкой"
+        ),
         parse_mode="HTML",
         reply_markup=specialist_types_keyboard(city)
     )
@@ -132,7 +130,6 @@ async def city_chosen(call: CallbackQuery, state: FSMContext):
 async def type_chosen(call: CallbackQuery, state: FSMContext):
     spec_type = call.data.split(":", 1)[1]
     data = await state.get_data()
-    city = data.get("city", "")
 
     filtered = [s for s in SPECIALISTS if s["type"] == spec_type]
     if not filtered:
@@ -161,16 +158,30 @@ async def show_specialist_card(message: Message, spec: dict, idx: int, total: in
         photo_bytes = black_square_image(300)
         photo = BufferedInputFile(photo_bytes, filename="photo.png")
 
-    if edit:
-        try:
-            await message.edit_media(
-                media=InputMediaPhoto(media=photo, caption=caption, parse_mode="HTML"),
-                reply_markup=kb
-            )
-        except Exception:
+    try:
+        if edit:
+            try:
+                await message.edit_media(
+                    media=InputMediaPhoto(media=photo, caption=caption, parse_mode="HTML"),
+                    reply_markup=kb
+                )
+            except Exception:
+                await message.answer_photo(photo=photo, caption=caption, parse_mode="HTML", reply_markup=kb)
+        else:
             await message.answer_photo(photo=photo, caption=caption, parse_mode="HTML", reply_markup=kb)
-    else:
-        await message.answer_photo(photo=photo, caption=caption, parse_mode="HTML", reply_markup=kb)
+    except Exception:
+        photo_bytes = black_square_image(300)
+        photo = BufferedInputFile(photo_bytes, filename="photo.png")
+        if edit:
+            try:
+                await message.edit_media(
+                    media=InputMediaPhoto(media=photo, caption=caption, parse_mode="HTML"),
+                    reply_markup=kb
+                )
+            except Exception:
+                await message.answer_photo(photo=photo, caption=caption, parse_mode="HTML", reply_markup=kb)
+        else:
+            await message.answer_photo(photo=photo, caption=caption, parse_mode="HTML", reply_markup=kb)
 
 
 @dp.callback_query(F.data.startswith("spec_nav:"))
@@ -196,11 +207,13 @@ async def back_to_cities(call: CallbackQuery, state: FSMContext):
     await call.message.delete()
     await call.message.answer_photo(
         photo=FSInputFile("Photos/welcome.png"),
-        caption = "Выберите ваш город:",
+        caption="Выберите ваш город:",
         reply_markup=cities_keyboard()
     )
     await state.set_state(OrderStates.choosing_city)
     await call.answer()
+
+
 @dp.callback_query(F.data == "back:types")
 async def back_to_types(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -208,9 +221,11 @@ async def back_to_types(call: CallbackQuery, state: FSMContext):
     await call.message.delete()
     await call.message.answer_photo(
         photo=FSInputFile("Photos/welcome.png"),
-        caption= f"📍 Город: <b>{city}</b>\n\nВыберите вариант отдыха:\n\n"
-        f"🔞<b>Интим</b> — секс и буря эмоций\n\n"
-        f"☺️<b>Просто отдых</b> — приятное общение с веселой и общительной девушкой",
+        caption=(
+            f"📍 Город: <b>{city}</b>\n\nВыберите вариант отдыха:\n\n"
+            f"🔞<b>Интим</b> — секс и буря эмоций\n\n"
+            f"☺️<b>Просто отдых</b> — приятное общение с веселой и общительной девушкой"
+        ),
         parse_mode="HTML",
         reply_markup=specialist_types_keyboard(city)
     )
@@ -231,29 +246,17 @@ async def hire_specialist(call: CallbackQuery, state: FSMContext):
         await call.answer("Модель не найдена.", show_alert=True)
         return
 
-    pd = PAYMENT_DETAILS
-    text = (
-        f"✅ Вы выбрали: <b>{spec['name']}</b>\n"
-        f"💰 Стоимость: <b>{spec['price']} ₽/час</b>\n\n"
-        f"<b>Презервативы входят в стоимость</b>\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"💳 <b>Реквизиты для оплаты:</b>\n\n"
-        f"🏦 Банк: <b>{pd['bank']}</b>\n"
-        f"💳 Карта: <code>{pd['card']}</code>\n"
-        f"👤 Получатель: <b>{pd['name']}</b>\n"
-        f"📱 По номеру: <code>{pd['phone']}</code>\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"После оплаты <b>отправьте скриншот</b> чека в этот чат 📸"
-    )
     await call.message.answer(
-    f"✅ Вы выбрали: <b>{spec['name']}</b>\n\n"
-    f"📍 Напишите ваш адрес (улица, дом, квартира):",
-    parse_mode="HTML"
-)
+        f"✅ Вы выбрали: <b>{spec['name']}</b>\n\n"
+        f"📍 Напишите ваш адрес (улица, дом, квартира):",
+        parse_mode="HTML"
+    )
     await state.update_data(selected_spec_id=spec_id)
     await state.set_state(OrderStates.waiting_address)
     await call.answer()
-    @dp.message(OrderStates.waiting_address)
+
+
+@dp.message(OrderStates.waiting_address)
 async def receive_address(message: Message, state: FSMContext):
     address = message.text
     await state.update_data(address=address)
@@ -281,6 +284,7 @@ async def receive_screenshot(message: Message, state: FSMContext):
     data = await state.get_data()
     spec_id = data.get("selected_spec_id")
     city = data.get("city", "Не указан")
+    address = data.get("address", "Не указан")
     spec = next((s for s in SPECIALISTS if s["id"] == spec_id), None)
 
     user = message.from_user
@@ -302,8 +306,9 @@ async def receive_screenshot(message: Message, state: FSMContext):
         f"👤 Клиент: {user.full_name} (@{user.username or '—'})\n"
         f"🆔 ID: <code>{user.id}</code>\n"
         f"📍 Город: {city}\n"
-        f"🔧 Модель: <b>{spec_name}</b>\n"
-        f"💵 Сумма: {spec['price']} ₽/час" if spec else f"🔧 Мастер ID: {spec_id}"
+        f"🏠 Адрес: {address}\n"
+        f"👗 Модель: <b>{spec_name}</b>\n"
+        f"💵 Сумма: {spec['price']} ₽/час" if spec else f"👗 Модель ID: {spec_id}"
     )
     await bot.send_photo(
         chat_id=ADMIN_ID,
@@ -385,9 +390,10 @@ async def admin_reject(call: CallbackQuery):
 async def main():
     from aiogram.types import BotCommand
     await bot.set_my_commands([
-        BotCommand(command="start", description="Заказать модель÷")
+        BotCommand(command="start", description="Заказать модель")
     ])
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
