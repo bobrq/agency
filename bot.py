@@ -27,6 +27,7 @@ class OrderStates(StatesGroup):
     choosing_city = State()
     choosing_specialist_type = State()
     browsing_specialists = State()
+    waiting_address = State()
     waiting_payment_screenshot = State()
 
 pending_payments: dict[str, dict] = {}  # key: "{user_id}_{specialist_id}"
@@ -244,9 +245,13 @@ async def hire_specialist(call: CallbackQuery, state: FSMContext):
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"После оплаты <b>отправьте скриншот</b> чека в этот чат 📸"
     )
-    await call.message.answer(text, parse_mode="HTML")
-    await state.update_data(selected_spec_id=spec_id)
-    await state.set_state(OrderStates.waiting_payment_screenshot)
+    await call.message.answer(
+    f"✅ Вы выбрали: <b>{spec['name']}</b>\n\n"
+    f"📍 Напишите ваш адрес (улица, дом, квартира):",
+    parse_mode="HTML"
+)
+await state.update_data(selected_spec_id=spec_id)
+await state.set_state(OrderStates.waiting_address)
     await call.answer()
 
 
