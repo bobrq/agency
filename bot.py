@@ -146,7 +146,12 @@ async def show_specialist_card(message: Message, spec: dict, idx: int, total: in
     caption = (
         f"👤 <b>{spec['name']}</b>\n"
         f"🎂 Возраст: {spec['age']} лет\n"
-        f"💰 Стоимость: <b>{spec['price']} ₽/час</b>\n\n"
+        f"⚖️ Вес: {spec['weight']} кг\n"
+        f"📏 Рост: {spec['height']} см\n"
+        f"👙 Грудь: {spec['bust']} см\n"
+        f"〰️ Талия: {spec['waist']} см\n"
+        f"🍑 Бёдра: {spec['hips']} см\n"
+        f"💰 Стоимость: <b>{spec['price']} ₽/час</b>\n"
     )
     kb = specialist_card_keyboard(idx, total, spec["id"])
     photo_path = spec.get("photo")
